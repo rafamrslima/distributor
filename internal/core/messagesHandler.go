@@ -17,25 +17,16 @@ func Handle(message *azservicebus.ReceivedMessage) error {
 	err := json.Unmarshal(message.Body, &jsonMsg)
 
 	if err != nil {
-		fmt.Println("Error to parse received json.")
+		fmt.Println("Error to parse received json. MessageId:", message.MessageID)
 		return err
 	}
 
 	db.SaveReceivedMessages(jsonMsg)
 
-	if !email.IsValidEmail(jsonMsg.Email) {
-		fmt.Println("Email is invalid.")
-		return fmt.Errorf("email is invalid")
-	}
+	isValid := validateMessage(jsonMsg)
 
-	if jsonMsg.EmailCc != "" && !email.IsValidEmail(jsonMsg.Email) {
-		fmt.Println("EmailCc is invalid.")
-		return fmt.Errorf("emailCc is invalid")
-	}
-
-	if len(jsonMsg.Content) == 0 {
-		fmt.Println("Content is empty.")
-		return fmt.Errorf("content is empty")
+	if !isValid {
+		return fmt.Errorf("message is invalid")
 	}
 
 	emailInfo := domain.Message{
@@ -53,4 +44,23 @@ func Handle(message *azservicebus.ReceivedMessage) error {
 	}
 
 	return nil
+}
+
+func validateMessage(message domain.Message) bool {
+	if !email.IsValidEmail(message.Email) {
+		fmt.Println("Email is invalid:", message.Email)
+		return false
+	}
+
+	if message.EmailCc != "" && !email.IsValidEmail(message.Email) {
+		fmt.Println("EmailCc is invalid:", message.EmailCc)
+		return false
+	}
+
+	if len(message.Content) == 0 {
+		fmt.Println("Content is empty.")
+		return false
+	}
+
+	return true
 }
