@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/signal"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
@@ -42,15 +40,20 @@ func sendMessage() {
 		log.Fatal(err)
 	}
 
-	fmt.Println("Message sent")
+	log.Println("Message sent.")
 }
 
 func getClient() (*azservicebus.Client, error) {
 	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, relying on system env")
+		log.Println("No .env file found, relying on system env.")
 	}
 
 	connStr := os.Getenv("SERVICEBUS_CONNECTION_STRING")
+
+	if connStr == "" {
+		log.Println("No connection string found for service bus.")
+		return nil, errors.New("connection string not found")
+	}
 
 	client, err := azservicebus.NewClientFromConnectionString(connStr, nil)
 	if err != nil {
@@ -63,13 +66,13 @@ func getClient() (*azservicebus.Client, error) {
 func getQueueName() (string, error) {
 	queue := os.Getenv("SERVICEBUS_QUEUE")
 	if queue == "" {
-		fmt.Println("SERVICEBUS_QUEUE is empty")
-		return "", errors.New("SERVICEBUS_QUEUE is empty")
+		log.Println("SERVICEBUS_QUEUE config is not valid.")
+		return "", errors.New("SERVICEBUS_QUEUE config is not valid")
 	}
 	return queue, nil
 }
 
-func StartMessageListener() error {
+func StartMessageListener(ctx context.Context) error {
 	client, err := getClient()
 	if err != nil {
 		return err
@@ -88,43 +91,39 @@ func StartMessageListener() error {
 	}
 
 	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		closeCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
-		_ = receiver.Close(ctx)
+		_ = receiver.Close(closeCtx)
 	}()
-
-	appCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	fmt.Println("Listening for messages... (Ctrl+C to quit)")
 
+	// Worker pool
 	jobs := make(chan *azservicebus.ReceivedMessage, 2*maxWorkers)
-
 	var wg sync.WaitGroup
 	for range maxWorkers {
 		wg.Go(func() {
 			for msg := range jobs {
-				// 1) process (idempotent!)
 				if err := core.Handle(msg); err != nil {
-					// choose policy: abandon or dead-letter
-					_ = receiver.AbandonMessage(appCtx, msg, nil)
+					// abandon or dead-letter
+					abandonCtx, cancel := context.WithTimeout(ctx, settleTimeout)
+					_ = receiver.DeadLetterMessage(abandonCtx, msg, nil)
+					cancel()
 					continue
 				}
-				// 2) settle (bounded)
-				ackCtx, cancel := context.WithTimeout(appCtx, settleTimeout)
+				ackCtx, cancel := context.WithTimeout(ctx, settleTimeout)
 				_ = receiver.CompleteMessage(ackCtx, msg, nil)
 				cancel()
 			}
 		})
 	}
 
-	for appCtx.Err() == nil {
-
-		callCtx, cancel := context.WithTimeout(appCtx, receiveWait)
+	for ctx.Err() == nil {
+		callCtx, cancel := context.WithTimeout(ctx, receiveWait)
 		messages, err := receiver.ReceiveMessages(callCtx, batchSize, nil)
 		cancel()
 
-		if appCtx.Err() != nil {
+		if ctx.Err() != nil {
 			break
 		}
 
@@ -138,13 +137,15 @@ func StartMessageListener() error {
 
 		for _, m := range messages {
 			select {
-			case jobs <- m: // backpressure if workers busy
-			case <-appCtx.Done():
-				break
+			case jobs <- m:
+			case <-ctx.Done():
+				close(jobs)
+				wg.Wait()
+				return ctx.Err()
 			}
 		}
 	}
 	close(jobs)
 	wg.Wait()
-	return appCtx.Err()
+	return ctx.Err()
 }

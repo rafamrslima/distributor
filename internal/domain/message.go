@@ -6,6 +6,6 @@ type Message struct {
 	Name              string
 	Email             string
 	EmailCc           string
-	Content           []byte
+	Content           string
 	MessageReceivedAt time.Time
 }
