@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	"github.com/rafamrslima/distributor/internal/db"
 	"github.com/rafamrslima/distributor/internal/domain"
 	"github.com/rafamrslima/distributor/internal/email"
+	"github.com/rafamrslima/distributor/internal/storage"
 )
 
 func Handle(message *azservicebus.ReceivedMessage) error {
@@ -22,6 +24,7 @@ func Handle(message *azservicebus.ReceivedMessage) error {
 	}
 
 	parsedMessage.MessageReceivedAt = time.Now()
+	parsedMessage.Content = parsedMessage.ReportName + "dummy content" // todo
 	err = db.SaveReceivedMessages(parsedMessage)
 
 	if err != nil {
@@ -35,32 +38,25 @@ func Handle(message *azservicebus.ReceivedMessage) error {
 		return fmt.Errorf("message is invalid")
 	}
 
-	emailInfo := domain.Message{
-		Name:              parsedMessage.Name,
-		Email:             parsedMessage.Email,
-		EmailCc:           parsedMessage.EmailCc,
-		Content:           parsedMessage.Content,
-		MessageReceivedAt: parsedMessage.MessageReceivedAt,
+	fileName := fmt.Sprintf("%s-%s", parsedMessage.ReportName, time.Now().Format("20060102_1504"))
+	file, err := os.Create(fileName)
+
+	if err != nil {
+		return err
 	}
 
-	mailErr := email.SendEmail(emailInfo)
+	err = storage.UploadFile(file, parsedMessage)
 
-	if mailErr != nil {
-		return mailErr
+	if err != nil {
+		return err
 	}
 
-	log.Println("Email sent successfully.")
 	return nil
 }
 
 func validateMessage(message domain.Message) bool {
 	if !email.IsValidEmail(message.Email) {
 		log.Println("Email is invalid:", message.Email)
-		return false
-	}
-
-	if message.EmailCc != "" && !email.IsValidEmail(message.Email) {
-		log.Println("EmailCc is invalid:", message.EmailCc)
 		return false
 	}
 

@@ -36,8 +36,8 @@ func SaveReceivedMessages(message domain.Message) error {
 
 	ctx := context.Background()
 
-	_, err = pool.Exec(ctx, `INSERT INTO messages (name, email, EmailCc, content, messageReceivedAt) VALUES ($1, $2, $3, $4, $5)`,
-		message.Name, message.Email, message.EmailCc, message.Content, message.MessageReceivedAt)
+	_, err = pool.Exec(ctx, `INSERT INTO messages (client_name, report_name, email, content, messageReceivedAt) VALUES ($1, $2, $3, $4, $5)`,
+		message.ClientName, message.ReportName, message.Email, message.Content, message.MessageReceivedAt)
 
 	if err != nil {
 		log.Println("Error when inserting row into database.", err.Error())

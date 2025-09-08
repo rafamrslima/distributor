@@ -1,8 +1,8 @@
 CREATE TABLE messages (
     id SERIAL PRIMARY KEY,
-    name TEXT NOT NULL,
+    client_name TEXT NOT NULL,
+    report_name TEXT NOT NULL,
     email TEXT NOT NULL,
-    EmailCc TEXT NULL,
     content BYTEA NOT NULL,
     messageReceivedAt TIMESTAMPTZ DEFAULT now()
 );

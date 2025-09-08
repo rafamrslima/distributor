@@ -1,15 +1,6 @@
 package email
 
-import (
-	"net/mail"
-
-	"github.com/rafamrslima/distributor/internal/domain"
-)
-
-func SendEmail(emailInfo domain.Message) error {
-	// todo
-	return nil
-}
+import "net/mail"
 
 func IsValidEmail(addr string) bool {
 	_, err := mail.ParseAddress(addr)
