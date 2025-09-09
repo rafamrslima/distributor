@@ -1,25 +1,27 @@
 package storage
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log"
 	"os"
+	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/joho/godotenv"
-	"github.com/rafamrslima/distributor/internal/domain"
 )
 
 const CONTAINER = "reports"
 
-func UploadFile(file *os.File, message domain.Message) error {
+func UploadFile(file bytes.Buffer, fileName string, directory string) error {
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, relying on system env.")
 	}
 
 	connString := os.Getenv("BLOB_STORAGE_CONNECTION_STRING")
-
 	svc, err := azblob.NewClientFromConnectionString(connString, nil)
 
 	if err != nil {
@@ -27,11 +29,20 @@ func UploadFile(file *os.File, message domain.Message) error {
 		return err
 	}
 
-	defer file.Close()
+	blobName := fmt.Sprintf("%s/%s", directory, fileName)
 
-	blobName := fmt.Sprintf("%s/%s", message.ClientName, file.Name())
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
 
-	_, err = svc.UploadFile(context.Background(), CONTAINER, blobName, file, nil)
+	headers := blob.HTTPHeaders{
+		BlobContentType: to.Ptr("application/pdf"),
+	}
+
+	_, err = svc.UploadBuffer(ctx, CONTAINER, blobName, file.Bytes(),
+		&azblob.UploadBufferOptions{
+			HTTPHeaders: &headers,
+		})
+
 	if err != nil {
 		log.Println("Error to upload file to storage.")
 		return err

@@ -1,13 +1,14 @@
 package core
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
+	"github.com/jung-kurt/gofpdf"
 	"github.com/rafamrslima/distributor/internal/db"
 	"github.com/rafamrslima/distributor/internal/domain"
 	"github.com/rafamrslima/distributor/internal/email"
@@ -24,7 +25,6 @@ func Handle(message *azservicebus.ReceivedMessage) error {
 	}
 
 	parsedMessage.MessageReceivedAt = time.Now()
-	parsedMessage.Content = parsedMessage.ReportName + "dummy content" // todo
 	err = db.SaveReceivedMessages(parsedMessage)
 
 	if err != nil {
@@ -38,14 +38,30 @@ func Handle(message *azservicebus.ReceivedMessage) error {
 		return fmt.Errorf("message is invalid")
 	}
 
-	fileName := fmt.Sprintf("%s-%s", parsedMessage.ReportName, time.Now().Format("20060102_1504"))
-	file, err := os.Create(fileName)
+	reportInfo, err := db.GetReportInfo(parsedMessage.Email, parsedMessage.ReportName)
 
 	if err != nil {
+		log.Println("Error to get report info from database.", err.Error())
 		return err
 	}
 
-	err = storage.UploadFile(file, parsedMessage)
+	var fileContent string
+
+	if len(reportInfo) > 0 {
+		fileContent = fmt.Sprintf("Balance for the day is $%v", (reportInfo[0].Gains - reportInfo[0].Losses))
+	} else {
+		fileContent = "Balance for the day does not exist in the database"
+	}
+	pdfFile, err := createPdfReport(fileContent)
+
+	if err != nil {
+		log.Println("Error to create pdf report.", err.Error())
+		return err
+	}
+
+	fileName := fmt.Sprintf("%s-%s.pdf", parsedMessage.ReportName, time.Now().Format("20060102_1504"))
+
+	err = storage.UploadFile(pdfFile, fileName, parsedMessage.ClientName)
 
 	if err != nil {
 		return err
@@ -60,10 +76,30 @@ func validateMessage(message domain.Message) bool {
 		return false
 	}
 
-	if len(message.Content) == 0 {
-		log.Println("Content is empty.")
+	if message.ClientName == "" {
+		log.Println("Client name is invalid:", message.Email)
+		return false
+	}
+
+	if message.ReportName == "" {
+		log.Println("Report name is invalid:", message.Email)
 		return false
 	}
 
 	return true
+}
+
+func createPdfReport(content string) (bytes.Buffer, error) {
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.AddPage()
+	pdf.SetFont("Arial", "B", 16)
+	pdf.Cell(40, 10, content)
+
+	var buf bytes.Buffer
+	err := pdf.Output(&buf) // write PDF into buffer
+	if err != nil {
+		return bytes.Buffer{}, err
+	}
+
+	return buf, nil
 }
