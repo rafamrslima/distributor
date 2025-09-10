@@ -8,6 +8,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
@@ -22,7 +24,16 @@ func UploadFile(file bytes.Buffer, fileName string, directory string) error {
 	}
 
 	connString := os.Getenv("BLOB_STORAGE_CONNECTION_STRING")
-	svc, err := azblob.NewClientFromConnectionString(connString, nil)
+	svc, err := azblob.NewClientFromConnectionString(connString, &azblob.ClientOptions{
+		ClientOptions: azcore.ClientOptions{
+			Retry: policy.RetryOptions{
+				MaxRetries:    3,
+				TryTimeout:    20 * time.Second,
+				RetryDelay:    400 * time.Millisecond,
+				MaxRetryDelay: 5 * time.Second,
+			},
+		},
+	})
 
 	if err != nil {
 		log.Println("Error to connect to storage.")
