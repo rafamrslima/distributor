@@ -21,28 +21,6 @@ const (
 	settleTimeout = 3 * time.Second // per-complete timeout
 )
 
-func sendMessage() {
-	queue := os.Getenv("SERVICEBUS_QUEUE")
-
-	client, err := getClient()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	sender, err := client.NewSender(queue, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	msg := &azservicebus.Message{Body: []byte("Hello from Go!")}
-	err = sender.SendMessage(context.Background(), msg, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	log.Println("Message sent.")
-}
-
 func getClient() (*azservicebus.Client, error) {
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, relying on system env.")

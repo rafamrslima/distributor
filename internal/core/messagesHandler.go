@@ -66,26 +66,24 @@ func Handle(message *azservicebus.ReceivedMessage) error {
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 
 func validateMessage(message domain.Message) bool {
-	if !email.IsValidEmail(message.Email) {
+	if !email.IsValid(message.Email) {
 		log.Println("Email is invalid:", message.Email)
 		return false
 	}
 
 	if message.ClientName == "" {
-		log.Println("Client name is invalid:", message.Email)
+		log.Println("Client name is invalid:", message.ClientName)
 		return false
 	}
 
 	if message.ReportName == "" {
-		log.Println("Report name is invalid:", message.Email)
+		log.Println("Report name is invalid:", message.ReportName)
 		return false
 	}
-
 	return true
 }
 
