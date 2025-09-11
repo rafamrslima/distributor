@@ -60,7 +60,6 @@ func Handle(message *azservicebus.ReceivedMessage) error {
 	}
 
 	fileName := fmt.Sprintf("%s-%s.pdf", parsedMessage.ReportName, time.Now().Format("20060102_1504"))
-
 	err = storage.UploadFile(pdfFile, fileName, parsedMessage.ClientName)
 
 	if err != nil {
