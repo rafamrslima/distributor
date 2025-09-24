@@ -48,7 +48,7 @@ func SaveReceivedMessages(message domain.Message) error {
 	return nil
 }
 
-func GetReportInfo(clientEmail string, reportName string) ([]domain.Results, error) {
+func GetReportInfo(clientEmail string, reportName string) ([]domain.Report, error) {
 	pool, err := connect()
 	if err != nil {
 		return nil, err
@@ -67,10 +67,10 @@ func GetReportInfo(clientEmail string, reportName string) ([]domain.Results, err
 	}
 	defer rows.Close()
 
-	var results []domain.Results
+	var results []domain.Report
 
 	for rows.Next() {
-		var res domain.Results
+		var res domain.Report
 		if err := rows.Scan(&res.ClientEmail, &res.ReportName, &res.Gains, &res.Losses, &res.InfoDate); err != nil {
 			log.Fatal(err)
 		}

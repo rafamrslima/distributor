@@ -2,7 +2,7 @@ package domain
 
 import "time"
 
-type Results struct {
+type Report struct {
 	ClientEmail string
 	ReportName  string
 	Gains       float64
