@@ -1,17 +1,15 @@
 package core
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
-	"github.com/jung-kurt/gofpdf"
 	"github.com/rafamrslima/distributor/internal/db"
 	"github.com/rafamrslima/distributor/internal/domain"
-	"github.com/rafamrslima/distributor/internal/email"
+	"github.com/rafamrslima/distributor/internal/helpers"
 	"github.com/rafamrslima/distributor/internal/storage"
 )
 
@@ -52,7 +50,7 @@ func Handle(message *azservicebus.ReceivedMessage) error {
 	} else {
 		fileContent = "Balance for the day does not exist in the database"
 	}
-	pdfFile, err := createPdfReport(fileContent)
+	pdfFile, err := helpers.CreatePdfReport(fileContent)
 
 	if err != nil {
 		log.Println("Error to create pdf report.", err.Error())
@@ -69,7 +67,7 @@ func Handle(message *azservicebus.ReceivedMessage) error {
 }
 
 func validateMessage(message domain.Message) bool {
-	if !email.IsValid(message.Email) {
+	if !helpers.IsEmailValid(message.Email) {
 		log.Println("Email is invalid:", message.Email)
 		return false
 	}
@@ -84,19 +82,4 @@ func validateMessage(message domain.Message) bool {
 		return false
 	}
 	return true
-}
-
-func createPdfReport(content string) (bytes.Buffer, error) {
-	pdf := gofpdf.New("P", "mm", "A4", "")
-	pdf.AddPage()
-	pdf.SetFont("Arial", "B", 16)
-	pdf.Cell(40, 10, content)
-
-	var buf bytes.Buffer
-	err := pdf.Output(&buf) // write PDF into buffer
-	if err != nil {
-		return bytes.Buffer{}, err
-	}
-
-	return buf, nil
 }

@@ -1,8 +1,8 @@
-package email
+package helpers
 
 import "net/mail"
 
-func IsValid(addr string) bool {
+func IsEmailValid(addr string) bool {
 	_, err := mail.ParseAddress(addr)
 	return err == nil
 }
