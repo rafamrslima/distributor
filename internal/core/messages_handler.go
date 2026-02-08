@@ -1,19 +1,20 @@
 package core
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
-	"github.com/rafamrslima/distributor/internal/db"
+	"github.com/rafamrslima/distributor/internal/db/repositories"
 	"github.com/rafamrslima/distributor/internal/domain"
 	"github.com/rafamrslima/distributor/internal/helpers"
 	"github.com/rafamrslima/distributor/internal/storage"
 )
 
-func Handle(message *azservicebus.ReceivedMessage) error {
+func Handle(ctx context.Context, message *azservicebus.ReceivedMessage) error {
 	var parsedMessage domain.Message
 	err := json.Unmarshal(message.Body, &parsedMessage)
 
@@ -23,7 +24,7 @@ func Handle(message *azservicebus.ReceivedMessage) error {
 	}
 
 	parsedMessage.MessageReceivedAt = time.Now()
-	err = db.SaveReceivedMessages(parsedMessage)
+	err = repositories.SaveReceivedMessages(ctx, parsedMessage)
 
 	if err != nil {
 		log.Println("Error to save data in the database", err.Error())
@@ -36,7 +37,7 @@ func Handle(message *azservicebus.ReceivedMessage) error {
 		return fmt.Errorf("message is invalid")
 	}
 
-	reportInfo, err := db.GetReportInfo(parsedMessage.Email, parsedMessage.ReportName)
+	reportInfo, err := repositories.GetReportInfo(ctx, parsedMessage.Email, parsedMessage.ReportName)
 
 	if err != nil {
 		log.Println("Error to get report info from database.", err.Error())

@@ -82,7 +82,7 @@ func StartMessageListener(ctx context.Context) error {
 	for range maxWorkers {
 		wg.Go(func() {
 			for msg := range jobs {
-				if err := core.Handle(msg); err != nil {
+				if err := core.Handle(ctx, msg); err != nil {
 					// abandon or dead-letter
 					abandonCtx, cancel := context.WithTimeout(ctx, settleTimeout)
 					_ = receiver.DeadLetterMessage(abandonCtx, msg, nil)
